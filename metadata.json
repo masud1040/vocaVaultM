@@ -1,0 +1,7 @@
+{
+  "name": "LinguistAI - Vocabulary Mastery",
+  "description": "A comprehensive vocabulary and grammar learning application powered by Gemini AI, featuring sentence generation, TTS pronunciation, and progress tracking.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
