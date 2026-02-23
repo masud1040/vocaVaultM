@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Vocabulary } from '../types';
 import { autoFillVocabulary, speakWord } from '../services/geminiService';
+import { supabase } from '../services/supabase';
 
 export default function VocabularyAdd() {
   const { id } = useParams();
@@ -36,19 +37,36 @@ export default function VocabularyAdd() {
   });
 
   useEffect(() => {
-    const savedVocab: Vocabulary[] = JSON.parse(localStorage.getItem('vocab') || '[]');
-    setTotalSaved(savedVocab.length);
+    const fetchVocab = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    if (id) {
-      const wordToEdit = savedVocab.find(v => v.id === id);
-      if (wordToEdit) {
-        setFormData({
-          word: wordToEdit.word,
-          meaning: wordToEdit.meaning,
-          example: wordToEdit.example
-        });
+      const { data, error } = await supabase
+        .from('vocabularies')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error fetching vocab:', error);
+        return;
       }
-    }
+
+      if (data) {
+        setTotalSaved(data.length);
+        if (id) {
+          const wordToEdit = data.find(v => v.id === id);
+          if (wordToEdit) {
+            setFormData({
+              word: wordToEdit.word,
+              meaning: wordToEdit.meaning,
+              example: wordToEdit.example || ''
+            });
+          }
+        }
+      }
+    };
+
+    fetchVocab();
   }, [id]);
 
   const handleSpeak = async () => {
@@ -80,33 +98,53 @@ export default function VocabularyAdd() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.word || !formData.meaning) return;
 
-    const savedVocab: Vocabulary[] = JSON.parse(localStorage.getItem('vocab') || '[]');
-    
-    if (id) {
-      const index = savedVocab.findIndex(v => v.id === id);
-      if (index !== -1) {
-        savedVocab[index] = { ...savedVocab[index], ...formData };
-      }
-    } else {
-      const newWord: Vocabulary = {
-        id: crypto.randomUUID(),
-        ...formData,
-        learned: false,
-        createdAt: Date.now()
-      };
-      savedVocab.push(newWord);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('You must be logged in to save vocabulary.');
+      return;
     }
 
-    localStorage.setItem('vocab', JSON.stringify(savedVocab));
-    setTotalSaved(savedVocab.length);
-    setShowSuccessModal(true);
-    
-    if (!id) {
-        setFormData({ word: '', meaning: '', example: '' });
+    try {
+      if (id) {
+        const { error } = await supabase
+          .from('vocabularies')
+          .update({
+            word: formData.word,
+            meaning: formData.meaning,
+            example: formData.example
+          })
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('vocabularies')
+          .insert([{
+            user_id: user.id,
+            word: formData.word,
+            meaning: formData.meaning,
+            example: formData.example,
+            learned: false,
+            created_at: Date.now()
+          }]);
+
+        if (error) throw error;
+        setTotalSaved(prev => prev + 1);
+      }
+
+      setShowSuccessModal(true);
+      
+      if (!id) {
+          setFormData({ word: '', meaning: '', example: '' });
+      }
+    } catch (error: any) {
+      console.error('Error saving vocabulary:', error);
+      alert('Failed to save vocabulary: ' + error.message);
     }
   };
 

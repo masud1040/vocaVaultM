@@ -29,6 +29,7 @@ import { Vocabulary, User } from '../types';
 import VoiceButton from '../components/VoiceButton';
 import ShareCard from '../components/ShareCard';
 import { toPng } from 'html-to-image';
+import { supabase } from '../services/supabase';
 
 const HighlightText: React.FC<{ text: string; highlight: string }> = ({ text, highlight }) => {
   if (!highlight.trim()) return <>{text}</>;
@@ -72,10 +73,29 @@ const VocabularyRead: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('vocab') || '[]');
-    setVocab(saved);
-    const savedUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
-    setUser(savedUser);
+    const fetchVocab = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      setUser({
+        id: user.id,
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+        email: user.email || ''
+      });
+
+      const { data, error } = await supabase
+        .from('vocabularies')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error fetching vocab:', error);
+      } else if (data) {
+        setVocab(data);
+      }
+    };
+
+    fetchVocab();
   }, []);
 
   const handleCopy = (text: string, id: string) => {
@@ -84,18 +104,37 @@ const VocabularyRead: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Delete this linguistic asset?")) {
-      const updated = vocab.filter(v => v.id !== id);
-      setVocab(updated);
-      localStorage.setItem('vocab', JSON.stringify(updated));
+      const { error } = await supabase
+        .from('vocabularies')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting vocab:', error);
+        alert('Failed to delete vocabulary.');
+      } else {
+        setVocab(vocab.filter(v => v.id !== id));
+      }
     }
   };
 
-  const toggleLearned = (id: string) => {
-    const updated = vocab.map(v => v.id === id ? { ...v, learned: !v.learned } : v);
-    setVocab(updated);
-    localStorage.setItem('vocab', JSON.stringify(updated));
+  const toggleLearned = async (id: string) => {
+    const item = vocab.find(v => v.id === id);
+    if (!item) return;
+
+    const { error } = await supabase
+      .from('vocabularies')
+      .update({ learned: !item.learned })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating vocab:', error);
+      alert('Failed to update status.');
+    } else {
+      setVocab(vocab.map(v => v.id === id ? { ...v, learned: !v.learned } : v));
+    }
   };
 
   const filteredVocab = useMemo(() => {

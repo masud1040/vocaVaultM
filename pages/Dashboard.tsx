@@ -7,6 +7,7 @@ import {
 import { BookOpen, GraduationCap, Trophy, Zap, Sparkles, CheckCircle2, TrendingUp, TrendingDown, Activity, Target } from 'lucide-react';
 import { Vocabulary, GrammarNote, TestResult } from '../types';
 import VoiceButton from '../components/VoiceButton';
+import { supabase } from '../services/supabase';
 
 const Dashboard: React.FC = () => {
   const [vocab, setVocab] = useState<Vocabulary[]>([]);
@@ -34,40 +35,58 @@ const Dashboard: React.FC = () => {
   ];
 
   useEffect(() => {
-    const savedVocab = JSON.parse(localStorage.getItem('vocab') || '[]');
-    const savedGrammar = JSON.parse(localStorage.getItem('grammar') || '[]');
-    const savedTests = JSON.parse(localStorage.getItem('tests') || '[]');
-    
-    setVocab(savedVocab);
-    setGrammar(savedGrammar);
-    setTests(savedTests);
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    // Merge user words with defaults. User words will appear alongside defaults.
-    // We shuffle the combined list and take exactly 12.
-    const combinedPool = [...savedVocab, ...defaultWords];
-    
-    // Ensure uniqueness based on the word string to avoid duplicates if user adds same words as defaults
-    const uniquePoolMap = new Map();
-    combinedPool.forEach(v => {
-      if (!uniquePoolMap.has(v.word.toLowerCase())) {
-        uniquePoolMap.set(v.word.toLowerCase(), v);
-      }
-    });
-    
-    const finalPool = Array.from(uniquePoolMap.values());
-    const shuffled = finalPool.sort(() => 0.5 - Math.random()).slice(0, 12);
-    setActiveWords(shuffled);
+      const [vocabRes, grammarRes, testsRes] = await Promise.all([
+        supabase.from('vocabularies').select('*').eq('user_id', user.id),
+        supabase.from('grammar_notes').select('*').eq('user_id', user.id),
+        supabase.from('test_results').select('*').eq('user_id', user.id)
+      ]);
+
+      const savedVocab = vocabRes.data || [];
+      const savedGrammar = grammarRes.data || [];
+      const savedTests = testsRes.data || [];
+
+      setVocab(savedVocab);
+      setGrammar(savedGrammar);
+      setTests(savedTests);
+
+      // Merge user words with defaults. User words will appear alongside defaults.
+      // We shuffle the combined list and take exactly 12.
+      const combinedPool = [...savedVocab, ...defaultWords];
+      
+      // Ensure uniqueness based on the word string to avoid duplicates if user adds same words as defaults
+      const uniquePoolMap = new Map();
+      combinedPool.forEach(v => {
+        if (!uniquePoolMap.has(v.word.toLowerCase())) {
+          uniquePoolMap.set(v.word.toLowerCase(), v);
+        }
+      });
+      
+      const finalPool = Array.from(uniquePoolMap.values());
+      const shuffled = finalPool.sort(() => 0.5 - Math.random()).slice(0, 12);
+      setActiveWords(shuffled);
+    };
+
+    fetchData();
   }, []);
 
   // Growth Chart Data
   const growthData = useMemo(() => {
     const source = vocab.length > 0 ? vocab : defaultWords.slice(0, 6);
-    const sorted = [...source].sort((a, b) => a.createdAt - b.createdAt);
+    const sorted = [...source].sort((a, b) => {
+      const timeA = a.created_at || a.createdAt || 0;
+      const timeB = b.created_at || b.createdAt || 0;
+      return timeA - timeB;
+    });
     let cumulative = 0;
     return sorted.map(v => {
       cumulative += 1;
+      const time = v.created_at || v.createdAt || Date.now();
       return {
-        date: new Date(v.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        date: new Date(time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
         count: cumulative
       };
     }).slice(-10);
