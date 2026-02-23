@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { BookOpen, Mail, Lock, User as UserIcon, ArrowRight, Loader2 } from 'lucide-react';
+import { BookOpen, Mail, Lock, User as UserIcon, ArrowRight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { User } from '../types';
 import { supabase } from '../services/supabase';
 
@@ -13,6 +13,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showGoogleWarning, setShowGoogleWarning] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationMessage, setConfirmationMessage] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -39,7 +42,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             email: data.user.email || formData.email,
           };
           localStorage.setItem('auth_user', JSON.stringify(user));
-          onLogin(user);
+          setConfirmationMessage('Login successful! Redirecting...');
+          setShowConfirmation(true);
+          setTimeout(() => {
+            onLogin(user);
+          }, 1500);
         }
       } else {
         const { data, error } = await supabase.auth.signUp({
@@ -61,7 +68,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             email: data.user.email || formData.email,
           };
           localStorage.setItem('auth_user', JSON.stringify(user));
-          onLogin(user);
+          setConfirmationMessage('Account created successfully! Redirecting...');
+          setShowConfirmation(true);
+          setTimeout(() => {
+            onLogin(user);
+          }, 1500);
         }
       }
     } catch (error: any) {
@@ -73,18 +84,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-      });
-      if (error) throw error;
-      // The redirect will handle the actual login state
-    } catch (error: any) {
-      console.error('Google auth error:', error.message);
-      alert(error.message);
-      setGoogleLoading(false);
-    }
+    setShowGoogleWarning(true);
+    setTimeout(() => {
+      setShowGoogleWarning(false);
+    }, 3000);
   };
 
   // Animation Variants
@@ -134,6 +137,31 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         animate="visible"
         className="w-full max-w-md relative z-10"
       >
+        <AnimatePresence>
+          {showGoogleWarning && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute -top-16 left-0 right-0 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-4 py-3 rounded-xl flex items-center gap-3 backdrop-blur-md"
+            >
+              <AlertCircle size={18} />
+              <span className="text-sm font-medium">Google Login is temporarily disabled. Please use email.</span>
+            </motion.div>
+          )}
+          {showConfirmation && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute -top-16 left-0 right-0 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-xl flex items-center gap-3 backdrop-blur-md"
+            >
+              <CheckCircle size={18} />
+              <span className="text-sm font-medium">{confirmationMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <LayoutGroup>
           <motion.div 
             layout
