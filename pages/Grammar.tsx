@@ -66,7 +66,12 @@ const Grammar: React.FC = () => {
       if (error) {
         console.error('Error fetching grammar:', error);
       } else if (data) {
-        setNotes(data);
+        // Map created_at to createdAt for the frontend
+        const mappedData = data.map(n => ({
+          ...n,
+          createdAt: n.created_at
+        }));
+        setNotes(mappedData);
       }
     };
 
@@ -118,7 +123,11 @@ const Grammar: React.FC = () => {
         console.error('Error adding grammar:', error);
         alert('Failed to add grammar note.');
       } else if (data) {
-        setNotes([...notes, data[0]]);
+        const newNoteData = {
+          ...data[0],
+          createdAt: data[0].created_at
+        };
+        setNotes([...notes, newNoteData]);
         resetForm();
       }
     }
