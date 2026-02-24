@@ -109,6 +109,22 @@ export default function VocabularyAdd() {
     }
 
     try {
+      if (!id) {
+        // Check if word already exists
+        const { data: existingWords, error: checkError } = await supabase
+          .from('vocabularies')
+          .select('word')
+          .eq('user_id', user.id)
+          .ilike('word', formData.word);
+
+        if (checkError) throw checkError;
+
+        if (existingWords && existingWords.length > 0) {
+          alert(`Warning: The word "${formData.word}" is already in your library.`);
+          return; // Stop execution if it already exists
+        }
+      }
+
       if (id) {
         const { error } = await supabase
           .from('vocabularies')

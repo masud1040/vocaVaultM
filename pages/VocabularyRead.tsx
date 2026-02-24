@@ -149,6 +149,11 @@ const VocabularyRead: React.FC = () => {
     if (statusFilter === 'mastered') filtered = filtered.filter(v => v.learned);
 
     filtered.sort((a, b) => {
+      // First, sort by learned status (unlearned first)
+      if (a.learned !== b.learned) {
+        return a.learned ? 1 : -1;
+      }
+      // Then, sort alphabetically
       const comparison = a.word.localeCompare(b.word);
       return sortBy === 'az' ? comparison : -comparison;
     });
