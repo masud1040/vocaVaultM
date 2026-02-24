@@ -27,6 +27,7 @@ import { Vocabulary, TestResult, User } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { toPng } from 'html-to-image';
 import TestCertificate from '../components/TestCertificate';
+import { supabase } from '../services/supabase';
 
 const Test: React.FC = () => {
   const navigate = useNavigate();
@@ -55,14 +56,32 @@ const Test: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const savedVocab = JSON.parse(localStorage.getItem('vocab') || '[]');
-    setVocab(savedVocab);
-    const savedUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
-    setUser(savedUser);
-    
-    if (savedVocab.length > 0 && savedVocab.length < 10) {
-      setConfig(prev => ({ ...prev, count: savedVocab.length }));
-    }
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      setUser({
+        id: user.id,
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+        email: user.email || ''
+      });
+
+      const { data, error } = await supabase
+        .from('vocabularies')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error fetching vocab:', error);
+      } else if (data) {
+        setVocab(data);
+        if (data.length > 0 && data.length < 10) {
+          setConfig(prev => ({ ...prev, count: data.length }));
+        }
+      }
+    };
+
+    fetchData();
   }, []);
 
   const isLowVocab = vocab.length < 5;
@@ -148,7 +167,7 @@ const Test: React.FC = () => {
     setTimeout(proceed, 600);
   };
 
-  const finishQuiz = () => {
+  const finishQuiz = async () => {
     clearInterval(timerRef.current);
     const duration = Math.round((Date.now() - startTime) / 1000);
     setTotalTimeTaken(duration);
@@ -165,8 +184,24 @@ const Test: React.FC = () => {
     };
 
     setCurrentResult(result);
-    const savedTests = JSON.parse(localStorage.getItem('tests') || '[]');
-    localStorage.setItem('tests', JSON.stringify([...savedTests, result]));
+    
+    if (user) {
+      const { error } = await supabase
+        .from('test_results')
+        .insert([{
+          user_id: user.id,
+          score: result.score,
+          total: result.total,
+          correct_answers: result.correctAnswers,
+          wrong_answers: result.wrongAnswers,
+          date: result.date
+        }]);
+
+      if (error) {
+        console.error('Error saving test result:', error);
+      }
+    }
+
     setStage('result');
   };
 

@@ -23,6 +23,8 @@ import {
 import { GrammarNote, User } from '../types';
 import { toPng } from 'html-to-image';
 import GrammarShareCard from '../components/GrammarShareCard';
+import { exportToPdf } from '../utils/pdfExport';
+import { supabase } from '../services/supabase';
 
 const Grammar: React.FC = () => {
   const [notes, setNotes] = useState<GrammarNote[]>([]);
@@ -37,6 +39,8 @@ const Grammar: React.FC = () => {
   const [selectedNote, setSelectedNote] = useState<GrammarNote | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -44,33 +48,80 @@ const Grammar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('grammar') || '[]');
-    setNotes(saved);
-    const savedUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
-    setUser(savedUser);
+    const fetchGrammar = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      setUser({
+        id: user.id,
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+        email: user.email || ''
+      });
+
+      const { data, error } = await supabase
+        .from('grammar_notes')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error fetching grammar:', error);
+      } else if (data) {
+        setNotes(data);
+      }
+    };
+
+    fetchGrammar();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const saved: GrammarNote[] = JSON.parse(localStorage.getItem('grammar') || '[]');
     
-    if (editingId) {
-      const index = saved.findIndex(n => n.id === editingId);
-      if (index !== -1) {
-        saved[index] = { ...saved[index], ...formData, createdAt: saved[index].createdAt };
-      }
-    } else {
-      const newNote: GrammarNote = {
-        id: crypto.randomUUID(),
-        ...formData,
-        createdAt: Date.now()
-      };
-      saved.push(newNote);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('You must be logged in to save grammar notes.');
+      return;
     }
 
-    localStorage.setItem('grammar', JSON.stringify(saved));
-    setNotes(saved);
-    resetForm();
+    if (editingId) {
+      const { error } = await supabase
+        .from('grammar_notes')
+        .update({
+          topic: formData.topic,
+          formula: formData.formula,
+          notes: formData.notes
+        })
+        .eq('id', editingId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error updating grammar:', error);
+        alert('Failed to update grammar note.');
+      } else {
+        setNotes(notes.map(n => n.id === editingId ? { ...n, ...formData } : n));
+        resetForm();
+      }
+    } else {
+      const newNote = {
+        user_id: user.id,
+        topic: formData.topic,
+        formula: formData.formula,
+        notes: formData.notes,
+        created_at: Date.now()
+      };
+
+      const { data, error } = await supabase
+        .from('grammar_notes')
+        .insert([newNote])
+        .select();
+
+      if (error) {
+        console.error('Error adding grammar:', error);
+        alert('Failed to add grammar note.');
+      } else if (data) {
+        setNotes([...notes, data[0]]);
+        resetForm();
+      }
+    }
   };
 
   const resetForm = () => {
@@ -86,12 +137,20 @@ const Grammar: React.FC = () => {
     setSelectedNote(null);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Delete this linguistic blueprint?")) {
-      const updated = notes.filter(n => n.id !== id);
-      setNotes(updated);
-      localStorage.setItem('grammar', JSON.stringify(updated));
-      setSelectedNote(null);
+      const { error } = await supabase
+        .from('grammar_notes')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting grammar:', error);
+        alert('Failed to delete grammar note.');
+      } else {
+        setNotes(notes.filter(n => n.id !== id));
+        setSelectedNote(null);
+      }
     }
   };
 
@@ -134,6 +193,15 @@ const Grammar: React.FC = () => {
     }
   };
 
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      await exportToPdf('grammar', filteredNotes, user);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   const filteredNotes = notes.filter(n => 
     n.topic.toLowerCase().includes(searchTerm.toLowerCase()) || 
     n.notes.toLowerCase().includes(searchTerm.toLowerCase())
@@ -165,6 +233,13 @@ const Grammar: React.FC = () => {
               className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 text-sm focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm"
             />
           </div>
+          <button 
+            onClick={handleExportPdf}
+            disabled={isExportingPdf}
+            className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-white dark:bg-slate-800 text-slate-700 dark:text-white font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm border border-slate-200 dark:border-white/5 hover:border-indigo-500/30 transition-all disabled:opacity-50"
+          >
+            {isExportingPdf ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Export
+          </button>
           <button 
             onClick={() => setIsAdding(true)}
             className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl"

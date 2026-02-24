@@ -29,6 +29,7 @@ import { Vocabulary, User } from '../types';
 import VoiceButton from '../components/VoiceButton';
 import ShareCard from '../components/ShareCard';
 import { toPng } from 'html-to-image';
+import { exportToPdf } from '../utils/pdfExport';
 import { supabase } from '../services/supabase';
 
 const HighlightText: React.FC<{ text: string; highlight: string }> = ({ text, highlight }) => {
@@ -65,6 +66,7 @@ const VocabularyRead: React.FC = () => {
   
   const [flashcardIdx, setFlashcardIdx] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -190,6 +192,15 @@ const VocabularyRead: React.FC = () => {
     }
   };
 
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await exportToPdf('vocabulary', filteredVocab, user);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const cardWidth = 500;
   const padding = 32;
   const scale = Math.min(1, (windowWidth - padding) / cardWidth);
@@ -245,22 +256,32 @@ const VocabularyRead: React.FC = () => {
              </div>
           </div>
 
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-white/5">
+          <div className="grid grid-cols-2 sm:flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-white/5 gap-1 w-full sm:w-auto">
+            <button 
+              onClick={handleExportPdf}
+              disabled={isExporting}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-slate-500 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-50 hover:scale-105 active:scale-95"
+              title="Export to PDF"
+            >
+              {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+              Export
+            </button>
+            <div className="hidden sm:block h-full w-[1px] bg-slate-200 dark:bg-white/10 mx-1"></div>
             <button 
               onClick={() => setViewMode('list')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-500'}`}
+              className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
             >
               <ListIcon size={16} /> List
             </button>
             <button 
               onClick={() => setViewMode('glossary')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'glossary' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-500'}`}
+              className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${viewMode === 'glossary' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
             >
               <AlignLeft size={16} /> Glossary
             </button>
             <button 
               onClick={() => setViewMode('flashcard')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'flashcard' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-500'}`}
+              className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 ${viewMode === 'flashcard' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
             >
               <Layers size={16} /> Study
             </button>
