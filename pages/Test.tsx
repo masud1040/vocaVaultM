@@ -86,11 +86,12 @@ const Test: React.FC = () => {
 
   const isLowVocab = vocab.length < 5;
 
-  const startQuiz = () => {
-    if (isLowVocab) return;
+  const startQuiz = (customPool?: Vocabulary[] | React.MouseEvent) => {
+    const poolToUse = Array.isArray(customPool) ? customPool : vocab;
+    if (!Array.isArray(poolToUse) || poolToUse.length < 1) return;
 
-    const shuffledPool = [...vocab].sort(() => 0.5 - Math.random());
-    const selected = shuffledPool.slice(0, Math.min(config.count, vocab.length));
+    const shuffledPool = [...poolToUse].sort(() => 0.5 - Math.random());
+    const selected = shuffledPool.slice(0, Math.min(config.count, poolToUse.length));
     
     const quizItems = selected.map(item => {
       const otherMeanings = vocab
@@ -122,6 +123,17 @@ const Test: React.FC = () => {
     setTimeLeft(config.timePerQuestion);
     setShowReview(false);
     setCurrentResult(null);
+  };
+
+  const startRetake = () => {
+    const incorrectVocab = questions
+      .filter((q, idx) => answers[idx] !== q.correct)
+      .map(q => vocab.find(v => v.id === q.id))
+      .filter((v): v is Vocabulary => !!v);
+    
+    if (incorrectVocab.length > 0) {
+      startQuiz(incorrectVocab);
+    }
   };
 
   useEffect(() => {
@@ -271,7 +283,7 @@ const Test: React.FC = () => {
                 <input type="range" min="5" max="30" step="5" disabled={isLowVocab} value={config.timePerQuestion} onChange={e => setConfig(prev => ({ ...prev, timePerQuestion: parseInt(e.target.value) }))} className="w-full h-2 bg-slate-100 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-indigo-600" />
               </div>
             </div>
-            <motion.button whileHover={!isLowVocab ? { scale: 1.02 } : {}} whileActive={!isLowVocab ? { scale: 0.98 } : {}} disabled={isLowVocab} onClick={startQuiz} className={`w-full py-5 rounded-3xl font-black text-lg flex items-center justify-center gap-3 transition-all ${isLowVocab ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30'}`}>
+            <motion.button whileHover={!isLowVocab ? { scale: 1.02 } : {}} whileActive={!isLowVocab ? { scale: 0.98 } : {}} disabled={isLowVocab} onClick={() => startQuiz()} className={`w-full py-5 rounded-3xl font-black text-lg flex items-center justify-center gap-3 transition-all ${isLowVocab ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30'}`}>
               Start Assessment
               <ChevronRight size={20} />
             </motion.button>
@@ -341,9 +353,64 @@ const Test: React.FC = () => {
              <Metric label="Time" value={`${totalTimeTaken}s`} color="text-amber-500" bg="bg-amber-500/10" />
           </div>
           <div className="flex flex-col sm:flex-row gap-4">
-             <button onClick={() => setShowCertificateModal(true)} className="flex-1 py-4 rounded-2xl bg-indigo-600/10 text-indigo-600 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-indigo-500/20"><Share2 size={16} /> Achievement Card</button>
-             <button onClick={() => setStage('setup')} className="flex-1 py-4 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"><RefreshCcw size={16} /> Recalibrate</button>
+             <button onClick={() => setShowCertificateModal(true)} className="flex-1 py-4 rounded-2xl bg-indigo-600/10 text-indigo-600 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-indigo-500/20 hover:bg-indigo-600/20 transition-all"><Share2 size={16} /> Achievement Card</button>
+             <button onClick={() => setShowReview(!showReview)} className="flex-1 py-4 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
+               {showReview ? <X size={16} /> : <Eye size={16} />} 
+               {showReview ? 'Hide Review' : 'Review Errors'}
+             </button>
+             <button onClick={() => startQuiz()} className="flex-1 py-4 rounded-2xl bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-all"><RefreshCcw size={16} /> New Test</button>
           </div>
+
+          <AnimatePresence>
+            {showReview && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="pt-8 space-y-4 text-left overflow-hidden"
+              >
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Error Analysis</h3>
+                  {questions.some((q, idx) => answers[idx] !== q.correct) && (
+                    <button 
+                      onClick={startRetake}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/10 text-red-500 text-[10px] font-black uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-all"
+                    >
+                      <RefreshCcw size={14} /> Retake Incorrect
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                  {questions.map((q, idx) => {
+                    const isCorrect = answers[idx] === q.correct;
+                    if (isCorrect) return null;
+                    return (
+                      <div key={idx} className="p-5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 flex justify-between items-center gap-4">
+                        <div className="space-y-1">
+                          <h4 className="text-lg font-black text-slate-900 dark:text-white">{q.word}</h4>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                            <span className="text-red-500 font-bold font-bangla">Your: {answers[idx] || 'Timed Out'}</span>
+                            <span className="text-green-500 font-bold font-bangla">Correct: {q.correct}</span>
+                          </div>
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+                          <XCircle size={20} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!questions.some((q, idx) => answers[idx] !== q.correct) && (
+                    <div className="py-10 text-center space-y-3">
+                      <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto text-green-500">
+                        <Sparkles size={32} />
+                      </div>
+                      <p className="text-sm font-bold text-slate-500">Flawless performance. No errors detected.</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
 

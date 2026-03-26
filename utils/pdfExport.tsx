@@ -56,26 +56,6 @@ const PdfTemplate: React.FC<PdfProps> = ({ type, data, user }) => {
     </thead>
   );
 
-  const TableRow = ({ item, index }: { item: any, index: number }) => (
-    <tr key={item.id || index} className="avoid-break">
-      {type === 'vocabulary' ? (
-        <>
-          <td style={{ fontWeight: 'bold', color: '#111827' }}>{item.word}</td>
-          <td style={{ color: '#374151' }}>{item.meaning}</td>
-          <td style={{ color: item.example ? '#374151' : '#9ca3af', fontStyle: item.example ? 'normal' : 'italic' }}>
-            {item.example || 'No example provided.'}
-          </td>
-        </>
-      ) : (
-        <>
-          <td style={{ fontWeight: 'bold', color: '#111827' }}>{item.topic}</td>
-          <td style={{ color: '#374151' }}>{item.formula}</td>
-          <td style={{ color: '#374151' }}>{item.notes}</td>
-        </>
-      )}
-    </tr>
-  );
-
   return (
     <div id="pdf-content" className="bg-white text-black" style={{ width: '100%', fontFamily: "'Times New Roman', 'Kalpurush', serif", boxSizing: 'border-box' }}>
       <style>{`
@@ -174,7 +154,23 @@ const PdfTemplate: React.FC<PdfProps> = ({ type, data, user }) => {
             <TableHeader />
             <tbody>
               {pageData.map((item: any, index: number) => (
-                <TableRow key={item.id || index} item={item} index={index} />
+                <tr key={item.id || index} className="avoid-break">
+                  {type === 'vocabulary' ? (
+                    <>
+                      <td style={{ fontWeight: 'bold', color: '#111827' }}>{item.word}</td>
+                      <td style={{ color: '#374151' }}>{item.meaning}</td>
+                      <td style={{ color: item.example ? '#374151' : '#9ca3af', fontStyle: item.example ? 'normal' : 'italic' }}>
+                        {item.example || 'No example provided.'}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ fontWeight: 'bold', color: '#111827' }}>{item.topic}</td>
+                      <td style={{ color: '#374151' }}>{item.formula}</td>
+                      <td style={{ color: '#374151' }}>{item.notes}</td>
+                    </>
+                  )}
+                </tr>
               ))}
             </tbody>
           </table>
@@ -211,16 +207,16 @@ export const exportToPdf = async (type: 'vocabulary' | 'grammar', data: any[], u
   // Wait for render and fonts to load
   await new Promise(resolve => setTimeout(resolve, 1500));
 
-  const element = container.querySelector('#pdf-content');
+  const element = container.querySelector('#pdf-content') as HTMLElement;
   
   if (element) {
     const opt = {
-      margin:       [10, 10, 10, 10],
+      margin:       [10, 10, 10, 10] as [number, number, number, number],
       filename:     `LinguistAI_${type}_${new Date().getTime()}.pdf`,
-      image:        { type: 'jpeg', quality: 1 },
+      image:        { type: 'jpeg' as const, quality: 1 },
       html2canvas:  { scale: 2, useCORS: true, letterRendering: true, windowWidth: 800 },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak:    { mode: ['css', 'legacy'] }
+      jsPDF:        { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const },
+      pagebreak:    { mode: ['css', 'legacy'] as any }
     };
 
     try {
